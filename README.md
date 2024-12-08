@@ -1,4 +1,4 @@
-## Тема 10. Optimisation, DB Connectivity.
+## Индексы. Интеграция с другими ЯП
 
 ### 1. Оптимизация
 
@@ -103,6 +103,8 @@ Execution time: 138.229 ms
 * Planning time — время, потраченное планировщиком на построение плана запроса.
 * Execution time — общее время выполнения запроса.
 
+---
+
 ### 1.2. Индексы. Определение, условия использования, способы сканирования.
 
 **Индекс** — специальный объект БД, хранящийся отдельно от таблиц и обеспечивающий быстрый доступ к данным. Это вспомогательные структуры: любой индекс можно удалить и восстановить заново по информации в таблице. Индексы служат также для поддержки некоторых ограничений целостности.
@@ -187,12 +189,11 @@ DROP INDEX [CONCURRENTLY] [IF EXISTS] name [, ...] [CASCADE|RESTRICT]
 
 ---
 
-### 2. Взаимодействие с внешней базой данной
+### 2. Интеграция с другими ЯП
 
 ### 2.1. Взаимодействие из-под Python
 
 [Python DB API 2.0](https://www.python.org/dev/peps/pep-0249/) - стандарт интерфейсов для пакетов, работающих с БД. "Набор правил", которым подчиняются отдельные модули, реализующие работу с конкретными базами данных.
-Для PostgreSQL наиболее популярный адаптер – [psycopg2](http://initd.org/psycopg/).  
 [Ноутбук с примерами](./examples/examples.ipynb).
 
 ### 2.2. Курсоры
@@ -212,3 +213,60 @@ DECLARE
     curs2 CURSOR FOR SELECT * FROM tenk1;
     curs3 CURSOR (key integer) FOR SELECT * FROM tenk1 WHERE unique1 = key;
 ```
+
+
+## Практические задачи (Индексы)
+
+1. **Создание индекса и анализ плана запроса:**
+   - Создайте таблицу `items(id SERIAL PRIMARY KEY, name TEXT, category_id INT, price NUMERIC)`.
+   - Заполните таблицу `items` случайными данными (например, 100000 строк).
+   - Выполните запрос:
+     ```sql
+     EXPLAIN (ANALYZE) SELECT * FROM items WHERE name = 'SomeName';
+     ```
+     Обратите внимание на используемый метод чтения данных и затраты.
+   - Создайте индекс по полю `name`:
+     ```sql
+     CREATE INDEX idx_items_name ON items(name);
+     ```
+   - Повторите запрос и сравните план: стало ли быстрее, использовался ли теперь индекс?
+
+2. **Выборка с разными условиями:**
+   - Выполните:
+     ```sql
+     EXPLAIN (ANALYZE) SELECT * FROM items WHERE price > 500;
+     ```
+     Посмотрите, какой метод сканирования выбран.
+   - Создайте индекс по полю `price`:
+     ```sql
+     CREATE INDEX idx_items_price ON items(price);
+     ```
+   - Повторите запрос и сравните результаты.  
+     Изменилось ли время выполнения? Какой метод сканирования теперь используется?
+
+3. **Сложный запрос и Bitmap Index Scan:**
+   - Попробуйте выполнить запрос:
+     ```sql
+     EXPLAIN (ANALYZE) SELECT * FROM items
+     WHERE category_id = 10 AND price < 100;
+     ```
+   - Создайте два индекса:
+     ```sql
+     CREATE INDEX idx_items_category_id ON items(category_id);
+     CREATE INDEX idx_items_price ON items(price);
+     ```
+   - Повторно выполните запрос, обратите внимание, не использует ли теперь PostgreSQL Bitmap Index Scan с объединением битовых карт?
+
+4. **Index Only Scan:**
+   - Добавьте в запрос только те поля, которые входят в индекс:
+     ```sql
+     CREATE INDEX idx_items_name_price ON items(name, price);
+     ```
+   - Выполните:
+     ```sql
+     EXPLAIN (ANALYZE) SELECT name, price FROM items WHERE name = 'SomeName';
+     ```
+   - Проверьте, будет ли применен Index Only Scan (особенно, если поле `name` и `price` полностью покрывают запрос).
+
+
+
